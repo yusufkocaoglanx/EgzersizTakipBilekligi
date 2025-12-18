@@ -1,0 +1,115 @@
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <TFT_eSPI.h>
+
+Adafruit_MPU6050 mpu;
+TFT_eSPI tft = TFT_eSPI();
+
+const int BUTON_PIN = 0; 
+int aktifMod = 0; 
+
+int sayaclar[4] = {0, 0, 0, 0};
+String modIsimleri[4] = {"YURUME", "KOSMA", "ZIPLAMA", "YUMRUK"};
+
+unsigned long sonHareketZamani = 0;
+bool guncellemeGerekiyor = true;
+
+void setup() {
+  pinMode(BUTON_PIN, INPUT_PULLUP);
+  if (!mpu.begin()) { while (1) yield(); }
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setFilterBandwidth(MPU6050_BAND_10_HZ); 
+
+  tft.init();
+  tft.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  ekranYonetici();
+}
+
+void loop() {
+  // 1. MOD DEĞİŞTİRME
+  if (digitalRead(BUTON_PIN) == LOW) {
+    aktifMod++;
+    if (aktifMod > 4) aktifMod = 0; 
+    guncellemeGerekiyor = true;
+    delay(350); 
+  }
+
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  float mag = sqrt(pow(a.acceleration.x, 2) + pow(a.acceleration.y, 2) + pow(a.acceleration.z, 2));
+  unsigned long suAn = millis();
+
+  // 2. AKTİVİTE ANALİZİ
+  // Koşma hassasiyeti ve bekleme süresi optimize edildi
+  int guncelBekleme = (aktifMod == 1) ? 350 : 1000; 
+
+  // ÖZET EKRANINDA DA SAYMASI İÇİN: 
+  // Eğer aktifMod 4 (Özet) ise, arka planda hangi hareketin yapıldığını mag değerine göre tahmin eder.
+  int analizModu = (aktifMod == 4) ? -1 : aktifMod; 
+
+  if (suAn - sonHareketZamani > guncelBekleme) {
+    int tespitEdilen = -1;
+
+    // Koşma eşiği 19.5'ten 17.5'e çekilerek hassaslaştırıldı
+    if (mag > 14.5 && mag < 17.5) tespitEdilen = 0;      // YURUME
+    else if (mag >= 17.5 && mag < 30.0) tespitEdilen = 1; // KOSMA (Hassas)
+    else if (mag >= 30.0 && mag < 38.0) tespitEdilen = 2; // ZIPLAMA
+    else if (mag >= 38.0) tespitEdilen = 3;               // YUMRUK
+
+    // Eğer bir mod seçiliyse sadece o modu say, Özet ekranındaysan hangisi uygunsa onu say
+    if (tespitEdilen != -1) {
+        if (analizModu == -1 || analizModu == tespitEdilen) {
+            sayaclar[tespitEdilen]++;
+            sonHareketZamani = suAn;
+            guncellemeGerekiyor = true;
+        }
+    }
+  }
+
+  // 3. EKRAN GÜNCELLEME
+  if (guncellemeGerekiyor) {
+    ekranYonetici();
+    guncellemeGerekiyor = false;
+  }
+}
+
+void ekranYonetici() {
+  tft.fillScreen(TFT_BLACK);
+
+  if (aktifMod < 4) {
+    tft.setTextColor(TFT_YELLOW);
+    tft.setTextSize(3);
+    tft.setCursor(10, 15);
+    tft.println(modIsimleri[aktifMod]);
+    tft.drawFastHLine(0, 50, 240, TFT_WHITE);
+    
+    tft.setTextColor(TFT_GREEN);
+    tft.setTextSize(8); 
+    tft.setCursor(65, 65);
+    tft.println(sayaclar[aktifMod]);
+  } 
+  else {
+    tft.setTextColor(TFT_CYAN);
+    tft.setTextSize(2);
+    tft.setCursor(10, 5);
+    tft.println("GUNLUK OZET");
+    tft.drawFastHLine(0, 25, 240, TFT_WHITE);
+    
+    int yPos = 40; 
+    for(int i = 0; i < 4; i++) {
+      tft.setCursor(10, yPos);
+      tft.setTextColor(TFT_WHITE);
+      tft.setTextSize(2);
+      tft.print(modIsimleri[i]);
+      
+      tft.setCursor(170, yPos); 
+      tft.setTextColor(TFT_GREEN);
+      tft.println(sayaclar[i]);
+      yPos += 25; 
+    }
+  }
+}
