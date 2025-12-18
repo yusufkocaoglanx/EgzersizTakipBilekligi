@@ -29,7 +29,6 @@ void setup() {
 }
 
 void loop() {
-  // 1. MOD DEĞİŞTİRME
   if (digitalRead(BUTON_PIN) == LOW) {
     aktifMod++;
     if (aktifMod > 4) aktifMod = 0; 
@@ -43,24 +42,18 @@ void loop() {
   float mag = sqrt(pow(a.acceleration.x, 2) + pow(a.acceleration.y, 2) + pow(a.acceleration.z, 2));
   unsigned long suAn = millis();
 
-  // 2. AKTİVİTE ANALİZİ
-  // Koşma hassasiyeti ve bekleme süresi optimize edildi
   int guncelBekleme = (aktifMod == 1) ? 350 : 1000; 
 
-  // ÖZET EKRANINDA DA SAYMASI İÇİN: 
-  // Eğer aktifMod 4 (Özet) ise, arka planda hangi hareketin yapıldığını mag değerine göre tahmin eder.
   int analizModu = (aktifMod == 4) ? -1 : aktifMod; 
 
   if (suAn - sonHareketZamani > guncelBekleme) {
     int tespitEdilen = -1;
 
-    // Koşma eşiği 19.5'ten 17.5'e çekilerek hassaslaştırıldı
     if (mag > 14.5 && mag < 17.5) tespitEdilen = 0;      // YURUME
     else if (mag >= 17.5 && mag < 30.0) tespitEdilen = 1; // KOSMA (Hassas)
     else if (mag >= 30.0 && mag < 38.0) tespitEdilen = 2; // ZIPLAMA
     else if (mag >= 38.0) tespitEdilen = 3;               // YUMRUK
 
-    // Eğer bir mod seçiliyse sadece o modu say, Özet ekranındaysan hangisi uygunsa onu say
     if (tespitEdilen != -1) {
         if (analizModu == -1 || analizModu == tespitEdilen) {
             sayaclar[tespitEdilen]++;
@@ -70,7 +63,6 @@ void loop() {
     }
   }
 
-  // 3. EKRAN GÜNCELLEME
   if (guncellemeGerekiyor) {
     ekranYonetici();
     guncellemeGerekiyor = false;
